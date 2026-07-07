@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { resample, IDEALS } from './recognizer.js';
 
-const MAX_PTS = 300;
+const MAX_PTS = 420;
 
 function makeRibbon(color, width) {
   const geo = new THREE.BufferGeometry();
@@ -55,26 +55,30 @@ export function createStrokes(world) {
   const _white = new THREE.Color(0xffffff);
   const _tmp = new THREE.Color();
 
+  // your own stroke floats on a plane this far ahead, anchored to the view
+  // direction where the draw began — it stays put in the world as you look
+  const LOCAL_DIST = 1.5;
+  const LOCAL_SCALE = LOCAL_DIST / 2.2; // must match player.js DRAW_SCALE
+
   function entryFor(w) {
     let e = entries.get(w.id);
     if (e) return e;
     const group = new THREE.Group();
-    // dark ink halo behind the glow so glyphs read against bright sky
-    const ink = makeRibbon(0x0d0a18, 0.062);
+    // dark ink halo behind the glow so glyphs read against bright sky;
+    // the first-person stroke is much finer than the world telegraphs
+    const ink = makeRibbon(0x0d0a18, w.isLocal ? 0.024 : 0.062);
     ink.material.blending = THREE.NormalBlending;
     ink.material.opacity = 0.5;
     ink.renderOrder = 948;
-    const core = makeRibbon(0xffffff, 0.014);
-    const glow = makeRibbon(0x88bbff, 0.04);
+    const core = makeRibbon(0xffffff, w.isLocal ? 0.006 : 0.014);
+    const glow = makeRibbon(0x88bbff, w.isLocal ? 0.016 : 0.04);
     glow.material.opacity = 0.3;
     group.add(ink, glow, core);
     if (w.isLocal) {
-      group.position.set(0, 0.02, -1.5);
-      world.camera.add(group);
-    } else {
-      world.scene.add(group);
+      ink.position.z = glow.position.z = core.position.z = -LOCAL_DIST;
     }
-    e = { group, core, glow, ink, morph: null, scale: w.isLocal ? 0.5 : 1.05, fade: 0 };
+    world.scene.add(group);
+    e = { group, core, glow, ink, morph: null, scale: w.isLocal ? LOCAL_SCALE : 1.05, fade: 0 };
     entries.set(w.id, e);
     return e;
   }
@@ -121,8 +125,13 @@ export function createStrokes(world) {
   S.update = (dt) => {
     for (const w of world.wizards) {
       const e = entryFor(w);
-      // billboard others' strokes above their wand, facing the camera
-      if (!w.isLocal) {
+      if (w.isLocal) {
+        // follow the player's eye but keep the orientation from stroke start,
+        // so the glyph stays glued to the world while the head moves
+        e.group.position.copy(world.camera.position);
+        if (w.stroke.anchor) e.group.quaternion.copy(w.stroke.anchor);
+      } else {
+        // billboard others' strokes above their wand, facing the camera
         e.group.position.set(w.pos.x, w.pos.y + 2.2, w.pos.z);
         e.group.quaternion.copy(world.camera.quaternion);
         const d = world.camera.position.distanceTo(e.group.position);

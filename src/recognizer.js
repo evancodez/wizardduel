@@ -15,8 +15,8 @@ const ANGLE_RANGE = Math.PI / 4;   // ±45°
 const ANGLE_PRECISION = (2 * Math.PI) / 180;
 const PHI = 0.5 * (-1 + Math.sqrt(5));
 
-export const RECOGNIZE_THRESHOLD = 0.58;
-export const GUESS_THRESHOLD = 0.5;
+export const RECOGNIZE_THRESHOLD = 0.52;
+export const GUESS_THRESHOLD = 0.45;
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -24,6 +24,41 @@ function pathLength(pts) {
   let d = 0;
   for (let i = 1; i < pts.length; i++) d += dist(pts[i - 1], pts[i]);
   return d;
+}
+
+// real mouse strokes have little "hooks" at press/release that poison the
+// indicative angle — trim ~3.5% of path length off each end
+function trimHooks(raw) {
+  if (raw.length < 10) return raw;
+  const pts = raw.slice();
+  const cut = pathLength(pts) * 0.035;
+  let acc = 0;
+  while (pts.length > 8) {
+    const d = dist(pts[0], pts[1]);
+    if (acc + d > cut) break;
+    acc += d; pts.shift();
+  }
+  acc = 0;
+  while (pts.length > 8) {
+    const d = dist(pts[pts.length - 2], pts[pts.length - 1]);
+    if (acc + d > cut) break;
+    acc += d; pts.pop();
+  }
+  return pts;
+}
+
+// light moving-average to knock down hand jitter before feature extraction
+function smoothStroke(raw) {
+  if (raw.length < 5) return raw;
+  const out = [raw[0]];
+  for (let i = 1; i < raw.length - 1; i++) {
+    out.push({
+      x: (raw[i - 1].x + raw[i].x * 2 + raw[i + 1].x) / 4,
+      y: (raw[i - 1].y + raw[i].y * 2 + raw[i + 1].y) / 4,
+    });
+  }
+  out.push(raw[raw.length - 1]);
+  return out;
 }
 
 export function resample(points, n = N) {
@@ -151,13 +186,13 @@ function strokeFeatures(raw) {
 
 const GATES = {
   line: () => 0.5, // lines are caught by the straightness precheck
-  circle: (f) => (f.closed && f.turn > 230 && f.turn < 520 && f.corners <= 2 ? 1 : 0.72),
-  caret: (f) => (!f.closed && f.corners >= 1 && f.corners <= 2 && f.turn < 240 ? 1 : 0.72),
-  zigzag: (f) => (!f.closed && f.corners >= 2 && f.corners <= 4 ? 1 : 0.72),
-  triangle: (f) => (f.closed && f.corners >= 1 && f.corners <= 4 ? 1 : 0.75),
-  square: (f) => (f.closed && f.corners >= 2 && f.corners <= 5 ? 1 : 0.75),
-  heart: (f) => (f.closed && f.turn > 230 ? 1 : 0.75),
-  spiral: (f) => (f.turn > 430 ? 1 : 0.55),
+  circle: (f) => (f.closed && f.turn > 230 && f.turn < 520 && f.corners <= 2 ? 1 : 0.8),
+  caret: (f) => (!f.closed && f.corners >= 1 && f.corners <= 2 && f.turn < 240 ? 1 : 0.8),
+  zigzag: (f) => (!f.closed && f.corners >= 2 && f.corners <= 4 ? 1 : 0.8),
+  triangle: (f) => (f.closed && f.corners >= 1 && f.corners <= 4 ? 1 : 0.82),
+  square: (f) => (f.closed && f.corners >= 2 && f.corners <= 5 ? 1 : 0.82),
+  heart: (f) => (f.closed && f.turn > 230 ? 1 : 0.82),
+  spiral: (f) => (f.turn > 430 ? 1 : 0.6),
 };
 
 // ---------- glyph ideals & templates ----------
@@ -269,14 +304,16 @@ function addTemplate(glyph, pts) {
 // ---------- public API ----------
 
 // Returns { glyph, spell, score, second } or null if unrecognizable.
-export function recognizeStroke(raw, { partial = false } = {}) {
-  if (!raw || raw.length < 6) return null;
+export function recognizeStroke(input, { partial = false } = {}) {
+  if (!input || input.length < 6) return null;
+  const raw = smoothStroke(partial ? input : trimHooks(input));
+  if (raw.length < 6) return null;
   const len = pathLength(raw);
-  if (len < 0.18) return null;
+  if (len < 0.16) return null;
 
   // straight-line precheck
   const chord = dist(raw[0], raw[raw.length - 1]);
-  if (chord > 0.65 * len && len > 0.3) {
+  if (chord > 0.62 * len && len > 0.28) {
     const x0 = raw[0], x1 = raw[raw.length - 1];
     const cl = Math.max(chord, 1e-9);
     let maxDev = 0;
@@ -284,7 +321,7 @@ export function recognizeStroke(raw, { partial = false } = {}) {
       const dev = Math.abs((x1.x - x0.x) * (x0.y - p.y) - (x0.x - p.x) * (x1.y - x0.y)) / cl;
       if (dev > maxDev) maxDev = dev;
     }
-    if (maxDev < Math.max(0.09 * len, 0.02)) {
+    if (maxDev < Math.max(0.11 * len, 0.02)) {
       return { glyph: 'line', spell: GLYPH_TO_SPELL.line, score: 0.95, second: null };
     }
   }
@@ -305,6 +342,10 @@ export function recognizeStroke(raw, { partial = false } = {}) {
   }
   if (!best) return null;
   const thresh = partial ? GUESS_THRESHOLD : RECOGNIZE_THRESHOLD;
-  if (best.score < thresh) return null;
+  // accept below-threshold matches when they clearly beat the runner-up —
+  // a decisive-but-sloppy glyph should cast, not fizzle
+  const margin = second ? best.score - second.score : 1;
+  const confident = !partial && best.score >= 0.44 && margin >= 0.07;
+  if (best.score < thresh && !confident) return null;
   return { glyph: best.glyph, spell: GLYPH_TO_SPELL[best.glyph], score: best.score, second };
 }

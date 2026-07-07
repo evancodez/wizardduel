@@ -11,9 +11,9 @@ const GLYPH_COST = { line: 0.5, circle: 0.65, caret: 0.62, zigzag: 0.75, triangl
 
 export const PERSONALITIES = {
   pip: {
-    id: 'pip', name: 'Pip the Apprentice', robe: 0x4e8f4a, trim: 0xd8b45a, eyes: 0xbfe8ff, hp: 80,
-    drawTime: 1.35, decide: [0.9, 1.5], react: 0.35, aimErr: 10, dodge: 0.2, healAt: 0.3, range: [9, 15],
-    weights: { bolt: 3.2, fireball: 2.6, lightning: 0.4, shield: 1.2, boulder: 0.25, heal: 0.6, mirror: 0.15, grab: 0.15 },
+    id: 'pip', name: 'Pip the Apprentice', robe: 0x4e8f4a, trim: 0xd8b45a, eyes: 0xbfe8ff, hp: 70,
+    drawTime: 1.6, decide: [1.3, 2.1], react: 0.25, aimErr: 13, dodge: 0.12, healAt: 0.3, range: [9, 15],
+    weights: { bolt: 3.2, fireball: 2.2, lightning: 0.3, shield: 0.8, boulder: 0.2, heal: 0.5, mirror: 0.1, grab: 0.15 },
     lines: {
       intro: ['I-I\'ve been practicing!', 'Master says I\'m ready. Probably.', 'Please be gentle?'],
       hit: ['Ha! Sorry! But ha!', 'It worked! It actually worked!', 'Did you see that?!'],

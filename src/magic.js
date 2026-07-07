@@ -25,7 +25,7 @@ export function createMagic(world) {
     out.set(-Math.sin(w.yaw) * Math.cos(w.pitch || 0), Math.sin(w.pitch || 0), -Math.cos(w.yaw) * Math.cos(w.pitch || 0));
 
   M.assistAim = (caster, dir) => {
-    let best = null, bestAngle = 16 * (Math.PI / 180);
+    let best = null, bestAngle = 19 * (Math.PI / 180);
     for (const e of world.enemiesOf(caster)) {
       if (!e.alive) continue;
       chestOf(e, _v).sub(eyeOf(caster, _v2));
@@ -35,7 +35,7 @@ export function createMagic(world) {
       if (angle < bestAngle) { bestAngle = angle; best = _v.clone(); }
     }
     if (best) {
-      const t = bestAngle < 9 * (Math.PI / 180) ? 0.92 : 0.5;
+      const t = bestAngle < 11 * (Math.PI / 180) ? 0.95 : 0.55;
       dir.lerp(best, t).normalize();
     }
     return dir;

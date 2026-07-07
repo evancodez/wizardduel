@@ -56,8 +56,12 @@ export function stepWizardPhysics(world, w, dt, wish = { x: 0, z: 0, jump: false
   return w.pos.y <= 0.001;
 }
 
+// radians of view sweep → draw-space units (recognizer is scale-invariant;
+// this just keeps min-length thresholds meaningful)
+const DRAW_SCALE = 2.2;
+
 export function createPlayer(world, wizard) {
-  const PL = { wizard, keys: {}, cursor: { x: 0, y: 0 }, guessTimer: 0, netDrawTimer: 0, sens: world.settings.sens };
+  const PL = { wizard, keys: {}, strokeStart: { yaw: 0, pitch: 0 }, guessTimer: 0, netDrawTimer: 0, sens: world.settings.sens };
   const dom = world.renderer.domElement;
   wizard.isLocal = true;
 
@@ -74,7 +78,12 @@ export function createPlayer(world, wizard) {
     wizard.stroke.dirty = true;
     wizard.stroke.guess = null;
     wizard.stroke.guessColor = null;
-    PL.cursor.x = 0; PL.cursor.y = 0;
+    // the pen is your crosshair: the glyph canvas is anchored to the view
+    // direction where the stroke began, and you paint it by looking
+    PL.strokeStart.yaw = wizard.yaw;
+    PL.strokeStart.pitch = wizard.pitch;
+    wizard.stroke.anchor = new THREE.Quaternion()
+      .setFromEuler(new THREE.Euler(wizard.pitch, wizard.yaw, 0, 'YXZ'));
     world.hud.setDrawing(true);
   }
 
@@ -104,8 +113,13 @@ export function createPlayer(world, wizard) {
       return;
     }
     const spell = SPELLS[res.spell];
-    const dir = new THREE.Vector3();
-    world.camera.getWorldDirection(dir);
+    // aim from yaw/pitch, not the camera quaternion — the camera may carry
+    // screen-shake at the instant of release
+    const dir = new THREE.Vector3(
+      -Math.sin(wizard.yaw) * Math.cos(wizard.pitch),
+      Math.sin(wizard.pitch),
+      -Math.cos(wizard.yaw) * Math.cos(wizard.pitch),
+    );
     const out = world.magic.cast(wizard, res.spell, { dir });
     if (!out.ok) {
       world.strokes.fizzle(wizard);
@@ -128,19 +142,22 @@ export function createPlayer(world, wizard) {
   const onMouseMove = (e) => {
     if (!locked() || world.paused) return;
     const mx = clamp(e.movementX, -60, 60), my = clamp(e.movementY, -60, 60);
+    // the view ALWAYS follows the mouse — you keep aiming mid-draw, and
+    // wherever you release is where the spell fires
+    wizard.yaw -= mx * 0.0022 * PL.sens;
+    wizard.pitch = clamp(wizard.pitch - my * 0.0022 * PL.sens, -1.35, 1.35);
     if (wizard.stroke.active) {
-      PL.cursor.x = clamp(PL.cursor.x + mx * 0.0035 * PL.sens, -1, 1);
-      PL.cursor.y = clamp(PL.cursor.y + my * 0.0035 * PL.sens, -1, 1);
+      // stroke point = angular offset from where the draw began (unbounded —
+      // sweep as far as you like)
+      const x = (PL.strokeStart.yaw - wizard.yaw) * DRAW_SCALE;
+      const y = (PL.strokeStart.pitch - wizard.pitch) * DRAW_SCALE;
       const pts = wizard.stroke.pts;
       const last = pts[pts.length - 1];
-      if (Math.hypot(PL.cursor.x - last.x, PL.cursor.y - last.y) > 0.015) {
-        pts.push({ x: PL.cursor.x, y: PL.cursor.y });
+      if (Math.hypot(x - last.x, y - last.y) > 0.014) {
+        pts.push({ x, y });
         wizard.stroke.dirty = true;
         if (pts.length % 6 === 0) world.audio.drawTick();
       }
-    } else {
-      wizard.yaw -= mx * 0.0022 * PL.sens;
-      wizard.pitch = clamp(wizard.pitch - my * 0.0022 * PL.sens, -1.35, 1.35);
     }
   };
   const onKey = (e) => {
@@ -197,7 +214,7 @@ export function createPlayer(world, wizard) {
       wx = -sin * f + cos * s;
       wz = -cos * f - sin * s;
     }
-    const speedMul = wizard.stroke.active ? 0.45 : wizard.channel ? 0.55 : 1;
+    const speedMul = wizard.stroke.active ? 0.6 : wizard.channel ? 0.55 : 1;
     const moving = Math.hypot(wx, wz) > 0.1;
     stepWizardPhysics(world, wizard, dt, { x: wx, z: wz, jump: !!PL.keys.Space && canAct(), speedMul });
 

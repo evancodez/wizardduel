@@ -441,7 +441,7 @@ export function createGame({ audio, settings }) {
     world.fpRig = buildFirstPersonRig(world.camera);
     world.player = createPlayer(world, me);
     const foe = makeWizard(world, { id: 'E0', name: pers.name, pos: spots.b, yaw: Math.PI, team: 'B', hp: pers.hp, personality: pers.id });
-    foe.ai = createAI(world, foe, pers, [0.3, 0.5, 0.68, 0.9][ladderIndex] ?? 0.6);
+    foe.ai = createAI(world, foe, pers, [0.2, 0.42, 0.62, 0.85][ladderIndex] ?? 0.6);
     world.ais.push(foe.ai);
     world.hud.setModeChip(`trial ${ladderIndex + 1} of ${LADDER.length} — ${pers.name}`);
     world.hud.setPips(0, 0, 0);

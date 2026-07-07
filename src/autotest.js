@@ -12,19 +12,25 @@ function check(name, ok, detail = '') {
   else { fail++; console.error(`[AUTOTEST] FAIL — ${name} ${detail}`); }
 }
 
-// draw like a human: jitter, rotate a bit, scale, offset
+// draw like a human: jitter, rotate a bit, scale, offset, hooks at the ends
 function sloppy(glyph, seedish = Math.random()) {
   const base = resample(IDEALS[glyph], 44);
   const ang = (seedish - 0.5) * 0.3;
   const cos = Math.cos(ang), sin = Math.sin(ang);
   const sc = 0.7 + seedish * 0.5;
   let wx = 0, wy = 0;
-  return base.map((p) => {
+  const pts = base.map((p) => {
     wx = wx * 0.72 + (Math.random() - 0.5) * 0.035;
     wy = wy * 0.72 + (Math.random() - 0.5) * 0.035;
     const x = (p.x - 0.5) * sc, y = (p.y - 0.5) * sc;
     return { x: x * cos - y * sin + wx, y: x * sin + y * cos + wy };
   });
+  // press/release hooks like a real mouse stroke
+  const h = 0.045 * sc;
+  pts.unshift({ x: pts[0].x + h, y: pts[0].y - h * 0.7 }, { x: pts[0].x + h * 0.5, y: pts[0].y - h * 0.4 });
+  const L = pts[pts.length - 1];
+  pts.push({ x: L.x - h * 0.6, y: L.y - h * 0.5 });
+  return pts;
 }
 
 async function testRecognizer() {

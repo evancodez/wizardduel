@@ -4,7 +4,7 @@
 export const SPELLS = {
   bolt: {
     id: 'bolt', name: 'Spark', glyph: 'line', color: 0x9fe8ff, css: '#9fe8ff',
-    dmg: 7, speed: 40, cooldown: 1.1, kind: 'bolt',
+    dmg: 7, speed: 48, cooldown: 0.9, kind: 'bolt',
     icon: 'M3 13 L21 10',
     desc: 'Quick zap. Weak, but interrupts a healer. Blocked by shield, mirrored back.',
   },
@@ -28,13 +28,13 @@ export const SPELLS = {
   },
   fireball: {
     id: 'fireball', name: 'Ember', glyph: 'triangle', color: 0xff9d4d, css: '#ff9d4d',
-    dmg: 17, speed: 22, cooldown: 3.5, kind: 'fire', splash: 3.2, burnDps: 2.5, burnTime: 2.4,
+    dmg: 17, speed: 30, cooldown: 3.5, kind: 'fire', splash: 3.2, burnDps: 2.5, burnTime: 2.4,
     icon: 'M12 4 L21 19 L3 19 Z',
     desc: 'Roaring fireball — splash damage, sets wizards and the arena alight.',
   },
   boulder: {
     id: 'boulder', name: 'Stone Maul', glyph: 'square', color: 0xb9a68c, css: '#b9a68c',
-    dmg: 26, speed: 16, cooldown: 6.5, kind: 'heavy', knockback: 11,
+    dmg: 26, speed: 21, cooldown: 6.5, kind: 'heavy', knockback: 11,
     icon: 'M5 5 L19 5 L19 19 L5 19 Z',
     desc: 'Slow, devastating boulder. Cracks shields, batters castles, flattens fools.',
   },
@@ -46,7 +46,7 @@ export const SPELLS = {
   },
   grab: {
     id: 'grab', name: 'Geist Grip', glyph: 'spiral', color: 0xc08bff, css: '#c08bff',
-    dmg: 22, speed: 26, cooldown: 7, kind: 'heavy', wizardDmg: 14,
+    dmg: 22, speed: 33, cooldown: 7, kind: 'heavy', wizardDmg: 14,
     icon: 'M12 12 C 13.6 10.8 13.5 8.9 11.9 8.3 C 9.6 7.4 7.4 9.4 7.8 12 C 8.3 15.3 11.8 17 14.8 15.7 C 18.6 14.1 19.4 9.3 16.9 6.2',
     desc: 'Seize the nearest rock, wreckage — or WIZARD — and hurl it. Blocked by shield, ignores mirrors.',
   },

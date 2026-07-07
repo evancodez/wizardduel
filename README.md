@@ -18,12 +18,12 @@ npm run build   # static build in dist/
 
 | Input | Action |
 |---|---|
-| **Hold LMB + move mouse** | draw a glyph (release = cast) |
+| **Hold LMB + move mouse** | paint a glyph with your view (release = cast **at your crosshair**) |
 | **Right-click while drawing** | cancel — great for feints |
 | WASD / Space | move / jump |
 | Esc | pause / release mouse |
 
-Drawing slows you down and locks your view. Sloppy glyphs are fine — the wand forgives.
+You keep aiming while you draw — the glyph hangs in the air where you started it, and wherever you're looking on release is where the spell goes. Drawing slows your feet, not your eyes. Sloppy glyphs are fine — the wand forgives.
 
 ## The spellbook
 
