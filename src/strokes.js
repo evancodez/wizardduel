@@ -59,17 +59,22 @@ export function createStrokes(world) {
     let e = entries.get(w.id);
     if (e) return e;
     const group = new THREE.Group();
-    const core = makeRibbon(0xffffff, 0.012);
-    const glow = makeRibbon(0x88bbff, 0.038);
+    // dark ink halo behind the glow so glyphs read against bright sky
+    const ink = makeRibbon(0x0d0a18, 0.062);
+    ink.material.blending = THREE.NormalBlending;
+    ink.material.opacity = 0.5;
+    ink.renderOrder = 948;
+    const core = makeRibbon(0xffffff, 0.014);
+    const glow = makeRibbon(0x88bbff, 0.04);
     glow.material.opacity = 0.3;
-    group.add(glow, core);
+    group.add(ink, glow, core);
     if (w.isLocal) {
       group.position.set(0, 0.02, -1.5);
       world.camera.add(group);
     } else {
       world.scene.add(group);
     }
-    e = { group, core, glow, morph: null, scale: w.isLocal ? 0.5 : 0.85, fade: 0 };
+    e = { group, core, glow, ink, morph: null, scale: w.isLocal ? 0.5 : 1.05, fade: 0 };
     entries.set(w.id, e);
     return e;
   }
@@ -100,7 +105,12 @@ export function createStrokes(world) {
 
   S.clear = (w) => {
     const e = entries.get(w.id);
-    if (e) { e.core.geometry.setDrawRange(0, 0); e.glow.geometry.setDrawRange(0, 0); e.morph = null; e.fade = 0; }
+    if (e) {
+      e.core.geometry.setDrawRange(0, 0);
+      e.glow.geometry.setDrawRange(0, 0);
+      e.ink.geometry.setDrawRange(0, 0);
+      e.morph = null; e.fade = 0;
+    }
   };
 
   S.remove = (w) => {
@@ -113,10 +123,10 @@ export function createStrokes(world) {
       const e = entryFor(w);
       // billboard others' strokes above their wand, facing the camera
       if (!w.isLocal) {
-        e.group.position.set(w.pos.x, w.pos.y + 2.15, w.pos.z);
+        e.group.position.set(w.pos.x, w.pos.y + 2.2, w.pos.z);
         e.group.quaternion.copy(world.camera.quaternion);
         const d = world.camera.position.distanceTo(e.group.position);
-        const k = Math.min(1 + d * 0.02, 1.8);
+        const k = Math.min(1 + d * 0.035, 2.4);
         e.group.scale.setScalar(k);
       }
 
@@ -130,6 +140,7 @@ export function createStrokes(world) {
         }));
         writeRibbon(e.core, pts, e.scale);
         writeRibbon(e.glow, pts, e.scale);
+        writeRibbon(e.ink, pts, e.scale);
         e.core.material.color.lerpColors(_white, e.morph.color, k);
         e.glow.material.color.copy(e.morph.color);
         e.core.material.opacity = 1;
@@ -142,7 +153,8 @@ export function createStrokes(world) {
         const k = Math.max(e.fade / 0.3, 0);
         e.core.material.opacity = k;
         e.glow.material.opacity = k * 0.4;
-        if (e.fade <= 0) S.clear(w);
+        e.ink.material.opacity = k * 0.5;
+        if (e.fade <= 0) { S.clear(w); e.ink.material.opacity = 0.5; }
         continue;
       }
       if (w.stroke.active && w.stroke.pts.length > 1) {
@@ -150,6 +162,7 @@ export function createStrokes(world) {
           w.stroke.dirty = false;
           writeRibbon(e.core, w.stroke.pts, e.scale);
           writeRibbon(e.glow, w.stroke.pts, e.scale);
+          writeRibbon(e.ink, w.stroke.pts, e.scale);
         }
         _tmp.set(w.stroke.guessColor || 0xffffff);
         e.core.material.color.lerp(_tmp, 0.15);
@@ -159,6 +172,7 @@ export function createStrokes(world) {
       } else if (!w.stroke.active) {
         e.core.geometry.setDrawRange(0, 0);
         e.glow.geometry.setDrawRange(0, 0);
+        e.ink.geometry.setDrawRange(0, 0);
       }
     }
   };
