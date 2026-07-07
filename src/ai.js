@@ -106,8 +106,10 @@ export function createAI(world, wizard, personality, difficulty = 0.5) {
     const lines = P.lines[category];
     if (!lines) return;
     tauntCooldown = 4;
-    world.hud.speech(wizard, lines[Math.floor(Math.random() * lines.length)]);
+    const line = lines[Math.floor(Math.random() * lines.length)];
+    world.hud.speech(wizard, line);
     world.audio.taunt();
+    world.net?.sendTaunt(wizard, line); // co-op guests hear the trash talk too
   };
 
   AI.onInterrupted = () => { plan = null; AI.say('hurt'); };
