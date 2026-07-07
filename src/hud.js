@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { SPELLS, SPELL_ORDER } from './spells.js';
+import { LOCAL_DIST, LOCAL_SCALE } from './strokes.js';
 import { clamp, fmtTime } from './utils.js';
 
 const $ = (id) => document.getElementById(id);
@@ -18,7 +19,7 @@ export function createHUD(world) {
     spellcard: $('spellcard'), guess: $('guesschip'), crosshair: $('crosshair'),
     floaters: $('floaters'), announce: $('announce'), vignette: $('vignette'),
     healglow: $('healglow'), flash: $('flash'), hint: $('hint'), statusrow: $('statusrow'),
-    heart: $('hpheart'),
+    heart: $('hpheart'), lockon: $('lockon'),
   };
 
   const cards = {};
@@ -219,6 +220,30 @@ export function createHUD(world) {
       b.el.style.left = `${p.x}px`;
       b.el.style.top = `${p.y}px`;
       b.el.style.opacity = Math.min(b.t / 0.4, 1);
+    }
+
+    // pen cursor: while drawing, the crosshair rides the smoothed pen tip
+    const pen = me && me.stroke.active && me.stroke.pen;
+    if (pen) {
+      _v.set(pen.x * LOCAL_SCALE, -pen.y * LOCAL_SCALE, -LOCAL_DIST).applyMatrix4(world.camera.projectionMatrix);
+      els.crosshair.style.left = `${(_v.x * 0.5 + 0.5) * innerWidth}px`;
+      els.crosshair.style.top = `${(-_v.y * 0.5 + 0.5) * innerHeight}px`;
+    } else {
+      els.crosshair.style.left = '50%';
+      els.crosshair.style.top = '50%';
+    }
+
+    // lock-on reticle over the target your glyph will strike
+    const lockT = me && me.stroke.active && me.stroke.lockId ? world.wizardById(me.stroke.lockId) : null;
+    if (lockT && lockT.alive) {
+      const p = project(_v.set(lockT.pos.x, lockT.pos.y + 1.2, lockT.pos.z));
+      if (p) {
+        els.lockon.style.opacity = 1;
+        els.lockon.style.left = `${p.x}px`;
+        els.lockon.style.top = `${p.y}px`;
+      } else els.lockon.style.opacity = 0;
+    } else {
+      els.lockon.style.opacity = 0;
     }
 
     // screen fx

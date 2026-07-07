@@ -18,12 +18,13 @@ npm run build   # static build in dist/
 
 | Input | Action |
 |---|---|
-| **Hold LMB + move mouse** | paint a glyph with your view (release = cast **at your crosshair**) |
+| **Aim, then hold LMB** | lock on (gold ring) and start drawing — the mouse becomes a pen |
+| **Release LMB** | cast: the spell flies **at the locked target**, leading their dodge |
 | **Right-click while drawing** | cancel — great for feints |
 | WASD / Space | move / jump |
 | Esc | pause / release mouse |
 
-You keep aiming while you draw — the glyph hangs in the air where you started it, and wherever you're looking on release is where the spell goes. Drawing slows your feet, not your eyes. Sloppy glyphs are fine — the wand forgives.
+Aim happens **before** the glyph: whatever's near your crosshair when you press gets ringed, your view gently tracks them while you scribble, and release sends the spell their way. No lock? It fires straight ahead. Sloppy glyphs are fine — the wand forgives.
 
 ## The spellbook
 

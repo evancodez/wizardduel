@@ -265,7 +265,15 @@ const TRI = [[0.5, 0.05], [0.94, 0.9], [0.06, 0.9]];
 const SQ = [[0.08, 0.08], [0.92, 0.08], [0.92, 0.92], [0.08, 0.92]];
 const ZIG_A = [[0, 0.72], [0.33, 0.2], [0.66, 0.72], [1, 0.2]];
 const ZIG_B = [[0.72, 0.02], [0.22, 0.5], [0.56, 0.52], [0.14, 0.98]];
+const ZIG_W = [[0, 0.7], [0.25, 0.2], [0.5, 0.7], [0.75, 0.2], [1, 0.7]];
 const CARET = [[0.06, 0.9], [0.5, 0.08], [0.94, 0.9]];
+
+// people draw round, un-notched hearts too — blend heart toward circle
+function chubbyHeartPts(dir = 1) {
+  const h = heartPts(dir);
+  const c = circlePts(dir, 0);
+  return normalizeUnit(h.map((p, i) => ({ x: p.x * 0.72 + c[i].x * 0.28, y: p.y * 0.72 + c[i].y * 0.28 })));
+}
 
 // Canonical shapes used for AI stroke replay & the post-cast "snap" morph.
 export const IDEALS = {
@@ -290,11 +298,13 @@ function addTemplate(glyph, pts) {
     for (let s = 0; s < 3; s++) addTemplate('triangle', polygonPts(TRI, s, dir));
     for (let s = 0; s < 4; s++) addTemplate('square', polygonPts(SQ, s, dir));
     addTemplate('heart', heartPts(dir));
+    addTemplate('heart', chubbyHeartPts(dir));
     addTemplate('spiral', normalizeUnit(spiralPts(dir, true)));
     addTemplate('spiral', normalizeUnit(spiralPts(dir, false)));
     const rev = (v) => (dir === 1 ? v : v.slice().reverse());
     addTemplate('zigzag', samplePolyline(rev(ZIG_A)));
     addTemplate('zigzag', samplePolyline(rev(ZIG_B)));
+    addTemplate('zigzag', samplePolyline(rev(ZIG_W)));
     addTemplate('caret', samplePolyline(rev(CARET)));
     addTemplate('line', samplePolyline(rev([[0, 0.5], [1, 0.5]])));
     addTemplate('line', samplePolyline(rev([[0.5, 0], [0.5, 1]])));
@@ -341,6 +351,11 @@ export function recognizeStroke(input, { partial = false } = {}) {
     else if (!second || score > second.score) second = { glyph, score };
   }
   if (!best) return null;
+  // near-ties between look-alike glyphs: let stroke features cast the vote
+  if (second && best.score - second.score < 0.09) {
+    const pref = pairPrefer(best.glyph, second.glyph, feats);
+    if (pref && pref !== best.glyph) best = { glyph: pref, score: best.score };
+  }
   const thresh = partial ? GUESS_THRESHOLD : RECOGNIZE_THRESHOLD;
   // accept below-threshold matches when they clearly beat the runner-up —
   // a decisive-but-sloppy glyph should cast, not fizzle
@@ -348,4 +363,13 @@ export function recognizeStroke(input, { partial = false } = {}) {
   const confident = !partial && best.score >= 0.44 && margin >= 0.07;
   if (best.score < thresh && !confident) return null;
   return { glyph: best.glyph, spell: GLYPH_TO_SPELL[best.glyph], score: best.score, second };
+}
+
+function pairPrefer(a, b, f) {
+  const has = (x) => a === x || b === x;
+  if (has('triangle') && has('square')) return f.corners >= 4 ? 'square' : f.corners <= 2 ? 'triangle' : null;
+  if (has('circle') && has('heart')) return f.corners >= 1 ? 'heart' : 'circle';
+  if (has('caret') && has('zigzag')) return f.corners >= 2 ? 'zigzag' : 'caret';
+  if (has('circle') && has('spiral')) return f.turn > 430 ? 'spiral' : 'circle';
+  return null;
 }

@@ -166,7 +166,7 @@ export function createMagic(world) {
   // ---------------- casting ----------------
 
   // Returns { ok, sync? } — sync carries grab-target resolution for the net layer.
-  M.cast = (caster, spellId, { dir = null, fromNet = false, sync = null, reflected = false } = {}) => {
+  M.cast = (caster, spellId, { dir = null, fromNet = false, sync = null, reflected = false, noAssist = false } = {}) => {
     const spell = SPELLS[spellId];
     if (!spell) return { ok: false };
     if (!reflected && !fromNet) {
@@ -175,7 +175,7 @@ export function createMagic(world) {
       caster.cooldowns[spellId] = spell.cooldown;
     }
     const aim = dir ? dir.clone().normalize() : forwardOf(caster, new THREE.Vector3());
-    if (!fromNet && !reflected && !caster.ai && spell.kind !== 'shield' && spell.kind !== 'heal') M.assistAim(caster, aim);
+    if (!fromNet && !reflected && !caster.ai && !noAssist && spell.kind !== 'shield' && spell.kind !== 'heal') M.assistAim(caster, aim);
     const origin = eyeOf(caster, new THREE.Vector3()).addScaledVector(aim, 0.7);
     let outSync = sync;
 

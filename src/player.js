@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { recognizeStroke, RECOGNIZE_THRESHOLD } from './recognizer.js';
 import { SPELLS } from './spells.js';
 import { ARENA_RADIUS } from './arena.js';
-import { clamp } from './utils.js';
+import { clamp, damp, angleLerp } from './utils.js';
 
 const GRAV = 22, SPEED = 8, ACCEL = 55, JUMP = 8;
 const _push = new THREE.Vector3();
@@ -56,20 +56,43 @@ export function stepWizardPhysics(world, w, dt, wish = { x: 0, z: 0, jump: false
   return w.pos.y <= 0.001;
 }
 
-// radians of view sweep → draw-space units (recognizer is scale-invariant;
-// this just keeps min-length thresholds meaningful)
-const DRAW_SCALE = 2.2;
-
 export function createPlayer(world, wizard) {
-  const PL = { wizard, keys: {}, strokeStart: { yaw: 0, pitch: 0 }, guessTimer: 0, netDrawTimer: 0, sens: world.settings.sens };
+  const PL = {
+    wizard, keys: {}, guessTimer: 0, netDrawTimer: 0, sens: world.settings.sens,
+    penRaw: { x: 0, y: 0 }, pen: { x: 0, y: 0 },
+  };
   const dom = world.renderer.domElement;
   wizard.isLocal = true;
 
   const locked = () => document.pointerLockElement === dom;
   PL.locked = locked;
 
+  const _eye = new THREE.Vector3();
+  const forwardDir = () => new THREE.Vector3(
+    -Math.sin(wizard.yaw) * Math.cos(wizard.pitch),
+    Math.sin(wizard.pitch),
+    -Math.cos(wizard.yaw) * Math.cos(wizard.pitch),
+  );
+
   const canAct = () =>
     world.phase === 'fight' && wizard.alive && !wizard.grabbedBy && !wizard.flung && locked() && !world.paused;
+
+  // aim is decided when you START the draw: whatever's near the crosshair
+  // gets locked, and the finished spell flies at it
+  function acquireLock() {
+    const dir = forwardDir();
+    let best = null, bestA = 17 * (Math.PI / 180);
+    for (const e of world.enemiesOf(wizard)) {
+      if (!e.alive) continue;
+      const to = world.magic.chestOf(e, new THREE.Vector3())
+        .sub(_eye.set(wizard.pos.x, wizard.pos.y + 1.55, wizard.pos.z));
+      const d = to.length();
+      if (d < 1.5 || d > 65) continue;
+      const a = to.normalize().angleTo(dir);
+      if (a < bestA) { bestA = a; best = e; }
+    }
+    return best;
+  }
 
   function startDraw() {
     if (!canAct() || wizard.castLock > 0 || wizard.channel) return;
@@ -78,12 +101,11 @@ export function createPlayer(world, wizard) {
     wizard.stroke.dirty = true;
     wizard.stroke.guess = null;
     wizard.stroke.guessColor = null;
-    // the pen is your crosshair: the glyph canvas is anchored to the view
-    // direction where the stroke began, and you paint it by looking
-    PL.strokeStart.yaw = wizard.yaw;
-    PL.strokeStart.pitch = wizard.pitch;
-    wizard.stroke.anchor = new THREE.Quaternion()
-      .setFromEuler(new THREE.Euler(wizard.pitch, wizard.yaw, 0, 'YXZ'));
+    PL.penRaw.x = PL.penRaw.y = PL.pen.x = PL.pen.y = 0;
+    wizard.stroke.pen = PL.pen;
+    const lock = acquireLock();
+    wizard.stroke.lockId = lock ? lock.id : null;
+    if (lock) world.audio.uiClick();
     world.hud.setDrawing(true);
   }
 
@@ -109,18 +131,27 @@ export function createPlayer(world, wizard) {
     if (!res) {
       world.strokes.fizzle(wizard);
       world.audio.fizzle();
-      world.hud.ticker('✏️ fizzle — glyph unclear', '#c9bfae');
+      const near = recognizeStroke(pts, { partial: true });
+      world.hud.ticker(near ? `✏️ fizzle — almost ${SPELLS[near.spell].name}, finish the shape` : '✏️ fizzle — glyph unclear', '#c9bfae');
       return;
     }
     const spell = SPELLS[res.spell];
-    // aim from yaw/pitch, not the camera quaternion — the camera may carry
-    // screen-shake at the instant of release
-    const dir = new THREE.Vector3(
-      -Math.sin(wizard.yaw) * Math.cos(wizard.pitch),
-      Math.sin(wizard.pitch),
-      -Math.cos(wizard.yaw) * Math.cos(wizard.pitch),
-    );
-    const out = world.magic.cast(wizard, res.spell, { dir });
+    // fire at the target locked when the draw began, leading their movement;
+    // otherwise straight out of the crosshair
+    let dir;
+    const lockT = wizard.stroke.lockId ? world.wizardById(wizard.stroke.lockId) : null;
+    if (lockT && lockT.alive) {
+      const aim = world.magic.chestOf(lockT, new THREE.Vector3());
+      _eye.set(wizard.pos.x, wizard.pos.y + 1.55, wizard.pos.z);
+      if (spell.speed) {
+        const tof = aim.distanceTo(_eye) / spell.speed;
+        aim.addScaledVector(lockT.vel, tof * 0.85);
+      }
+      dir = aim.sub(_eye).normalize();
+    } else {
+      dir = forwardDir();
+    }
+    const out = world.magic.cast(wizard, res.spell, { dir, noAssist: !!lockT });
     if (!out.ok) {
       world.strokes.fizzle(wizard);
       world.audio.fizzle();
@@ -142,22 +173,14 @@ export function createPlayer(world, wizard) {
   const onMouseMove = (e) => {
     if (!locked() || world.paused) return;
     const mx = clamp(e.movementX, -60, 60), my = clamp(e.movementY, -60, 60);
-    // the view ALWAYS follows the mouse — you keep aiming mid-draw, and
-    // wherever you release is where the spell fires
-    wizard.yaw -= mx * 0.0022 * PL.sens;
-    wizard.pitch = clamp(wizard.pitch - my * 0.0022 * PL.sens, -1.35, 1.35);
     if (wizard.stroke.active) {
-      // stroke point = angular offset from where the draw began (unbounded —
-      // sweep as far as you like)
-      const x = (PL.strokeStart.yaw - wizard.yaw) * DRAW_SCALE;
-      const y = (PL.strokeStart.pitch - wizard.pitch) * DRAW_SCALE;
-      const pts = wizard.stroke.pts;
-      const last = pts[pts.length - 1];
-      if (Math.hypot(x - last.x, y - last.y) > 0.014) {
-        pts.push({ x, y });
-        wizard.stroke.dirty = true;
-        if (pts.length % 6 === 0) world.audio.drawTick();
-      }
+      // while drawing, the mouse is ONLY a pen (unbounded canvas) —
+      // aim was locked when the stroke began
+      PL.penRaw.x += mx * 0.0034 * PL.sens;
+      PL.penRaw.y += my * 0.0034 * PL.sens;
+    } else {
+      wizard.yaw -= mx * 0.0022 * PL.sens;
+      wizard.pitch = clamp(wizard.pitch - my * 0.0022 * PL.sens, -1.35, 1.35);
     }
   };
   const onKey = (e) => {
@@ -188,6 +211,29 @@ export function createPlayer(world, wizard) {
     if (wizard.stroke.interrupted > 0 && wizard.stroke.active === false && world.hud.isDrawing) {
       world.hud.setDrawing(false);
       world.hud.setGuess(null);
+    }
+
+    // pen smoothing → silky strokes; capture from the smoothed pen
+    if (wizard.stroke.active) {
+      PL.pen.x = damp(PL.pen.x, PL.penRaw.x, 26, dt);
+      PL.pen.y = damp(PL.pen.y, PL.penRaw.y, 26, dt);
+      const pts = wizard.stroke.pts;
+      const last = pts[pts.length - 1];
+      if (Math.hypot(PL.pen.x - last.x, PL.pen.y - last.y) > 0.012) {
+        pts.push({ x: PL.pen.x, y: PL.pen.y });
+        wizard.stroke.dirty = true;
+        if (pts.length % 6 === 0) world.audio.drawTick();
+      }
+      // gently keep facing the locked target while you strafe & draw
+      const lockT = wizard.stroke.lockId ? world.wizardById(wizard.stroke.lockId) : null;
+      if (lockT && lockT.alive) {
+        const dx = lockT.pos.x - wizard.pos.x, dz = lockT.pos.z - wizard.pos.z;
+        const wantYaw = Math.atan2(-dx, -dz);
+        const dy = (lockT.pos.y + 1.15) - (wizard.pos.y + 1.62);
+        const wantPitch = clamp(Math.atan2(dy, Math.hypot(dx, dz)), -0.6, 0.6);
+        wizard.yaw = angleLerp(wizard.yaw, wantYaw, Math.min(1, dt * 4));
+        wizard.pitch = damp(wizard.pitch, wantPitch, 4, dt);
+      }
     }
 
     // live recognition of the partial stroke

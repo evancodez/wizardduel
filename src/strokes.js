@@ -7,6 +7,11 @@ import { resample, IDEALS } from './recognizer.js';
 
 const MAX_PTS = 420;
 
+// your own stroke lives on a screen-space canvas this far ahead of the camera
+// (the hud pen cursor projects through the same constants)
+export const LOCAL_DIST = 1.5;
+export const LOCAL_SCALE = 0.62;
+
 function makeRibbon(color, width) {
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(MAX_PTS * 2 * 3);
@@ -55,11 +60,6 @@ export function createStrokes(world) {
   const _white = new THREE.Color(0xffffff);
   const _tmp = new THREE.Color();
 
-  // your own stroke floats on a plane this far ahead, anchored to the view
-  // direction where the draw began — it stays put in the world as you look
-  const LOCAL_DIST = 1.5;
-  const LOCAL_SCALE = LOCAL_DIST / 2.2; // must match player.js DRAW_SCALE
-
   function entryFor(w) {
     let e = entries.get(w.id);
     if (e) return e;
@@ -76,8 +76,10 @@ export function createStrokes(world) {
     group.add(ink, glow, core);
     if (w.isLocal) {
       ink.position.z = glow.position.z = core.position.z = -LOCAL_DIST;
+      world.camera.add(group);
+    } else {
+      world.scene.add(group);
     }
-    world.scene.add(group);
     e = { group, core, glow, ink, morph: null, scale: w.isLocal ? LOCAL_SCALE : 1.05, fade: 0 };
     entries.set(w.id, e);
     return e;
@@ -125,12 +127,7 @@ export function createStrokes(world) {
   S.update = (dt) => {
     for (const w of world.wizards) {
       const e = entryFor(w);
-      if (w.isLocal) {
-        // follow the player's eye but keep the orientation from stroke start,
-        // so the glyph stays glued to the world while the head moves
-        e.group.position.copy(world.camera.position);
-        if (w.stroke.anchor) e.group.quaternion.copy(w.stroke.anchor);
-      } else {
+      if (!w.isLocal) {
         // billboard others' strokes above their wand, facing the camera
         e.group.position.set(w.pos.x, w.pos.y + 2.2, w.pos.z);
         e.group.quaternion.copy(world.camera.quaternion);

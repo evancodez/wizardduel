@@ -92,9 +92,16 @@
     #guesschip svg { width: 26px; height: 26px; }
     #guesschip svg path { fill: none; stroke: var(--gold); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 
-    /* crosshair */
+    /* crosshair — doubles as the pen tip while drawing */
     #crosshair { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px; border: 2px solid rgba(242,233,216,.9); border-radius: 50%; box-shadow: 0 0 4px rgba(0,0,0,.8); }
-    #crosshair.drawing { width: 5px; height: 5px; margin: -2.5px; background: var(--gold); border-color: var(--gold); border-radius: 40% 60% 50% 50%; }
+    #crosshair.drawing { width: 7px; height: 7px; margin: -3.5px; background: var(--gold); border-color: #fff; border-radius: 40% 60% 50% 50%; box-shadow: 0 0 10px var(--gold); }
+
+    /* lock-on reticle: what your spell will strike */
+    #lockon { position: absolute; width: 54px; height: 54px; margin: -27px; border: 2.5px dashed var(--gold);
+      border-radius: 50%; opacity: 0; pointer-events: none; transition: opacity .12s;
+      box-shadow: 0 0 12px rgba(255,215,106,.35), inset 0 0 12px rgba(255,215,106,.2);
+      animation: lockspin 5s linear infinite; }
+    @keyframes lockspin { to { transform: rotate(360deg); } }
 
     /* floaters (world-projected: damage numbers, overhead bars, bubbles) */
     #floaters { position: absolute; inset: 0; overflow: hidden; }
@@ -198,8 +205,9 @@
       <div id="hpwrap"><div id="hpfill"></div><div id="hpticks"></div><div id="hpnum">100</div></div>
     </div>
     <div id="spellcard" class="chip"></div>
-    <div id="hint" class="chip"><b>HOLD LEFT-CLICK</b> &amp; paint the air with your view — release to cast <b>at your crosshair</b>. <b>Right-click</b> cancels (feint!). <b>WASD</b> move, <b>SPACE</b> jump.</div>
+    <div id="hint" class="chip"><b>AIM at your foe</b>, then <b>HOLD LEFT-CLICK</b> to lock on &amp; draw — release fires <b>at the locked ring</b>. <b>Right-click</b> cancels (feint!). <b>WASD</b> move, <b>SPACE</b> jump.</div>
     <div id="guesschip" class="chip"><svg viewBox="0 0 24 24"><path d=""/></svg><span>?</span></div>
+    <div id="lockon"></div>
     <div id="crosshair"></div>
     <div id="announce"></div>
   </div>
@@ -242,8 +250,9 @@
     <div class="panel hidden" id="panel-howto">
       <h2>How to Play</h2>
       <div style="text-align:left;font-size:16.5px;line-height:1.5">
-        <b>Hold left-click</b> and scrawl a glyph in the air with your view, <b>release to cast at your crosshair</b>.
-        Sloppy is fine — the wand forgives. You keep aiming the whole time, but you move slower mid-draw, so pick your moment.<br><br>
+        Aim at your rival, <b>hold left-click</b> to lock on (gold ring), then scrawl the glyph — the mouse is a pen
+        while you draw. <b>Release, and the spell flies at the locked ring</b>, wherever they've dodged to.
+        Sloppy is fine — the wand forgives. You move slower mid-draw, so pick your moment.<br><br>
         <b>You can see your foe's glyph forming in real time</b> — and they see yours.
         Read it. Counter it. Or <b>right-click</b> mid-draw to cancel and feint.<br>
       </div>
