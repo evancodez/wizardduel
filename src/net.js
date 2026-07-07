@@ -132,10 +132,14 @@ export function createNet({ role, code, mode, name, onReady, onPeerLeft, onError
   }
 
   // ---------- outgoing ----------
+  const drawLast = new Map(); // per-wizard throttle (AI calls this every frame)
   N.sendDraw = (w, done = false) => {
     if (!N.connected) return;
-    if (done) send({ t: 'dr', id: w.id, done: true });
-    else send({ t: 'dr', id: w.id, p: w.stroke.pts.map((p) => [+p.x.toFixed(3), +p.y.toFixed(3)]) });
+    if (done) { drawLast.delete(w.id); send({ t: 'dr', id: w.id, done: true }); return; }
+    const now = performance.now();
+    if (now - (drawLast.get(w.id) || 0) < 60) return;
+    drawLast.set(w.id, now);
+    send({ t: 'dr', id: w.id, p: w.stroke.pts.map((p) => [+p.x.toFixed(3), +p.y.toFixed(3)]) });
   };
 
   N.sendCast = (w, spell, dir, sync) => {
