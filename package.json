@@ -1,0 +1,19 @@
+{
+  "name": "wizardduel",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "First-person wizard dueling — draw glyphs to cast spells, wreck the arena.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "peerjs": "^1.5.4",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}

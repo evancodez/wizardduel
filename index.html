@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wizard Duel — Scribble Sorcery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #f2e9d8;
+      --ink-dim: #c9bfae;
+      --paper: rgba(18, 15, 28, 0.82);
+      --paper-solid: #171225;
+      --blue: #6ec3ff;
+      --red: #ff6a5e;
+      --gold: #ffd76a;
+      --green: #8fe08a;
+      --purple: #c08bff;
+      --hand: 'Patrick Hand', 'Comic Sans MS', cursive;
+      --script: 'Caveat', 'Patrick Hand', cursive;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0d0b16; font-family: var(--hand); }
+    #app, #app canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    #app canvas { cursor: crosshair; }
+
+    /* ============ HUD ============ */
+    #hud { position: fixed; inset: 0; pointer-events: none; color: var(--ink); user-select: none; z-index: 5; }
+    #hud.hidden { display: none; }
+
+    .chip {
+      background: var(--paper); border: 2px solid var(--ink);
+      border-radius: 12px 16px 12px 18px / 16px 12px 18px 12px;
+      padding: 2px 14px; box-shadow: 0 3px 0 rgba(0,0,0,0.35);
+    }
+
+    /* top center: timer + round context */
+    #topcenter { position: absolute; top: 12px; left: 50%; transform: translateX(-50%) rotate(-0.4deg); text-align: center; }
+    #timerchip { font-size: 26px; letter-spacing: 2px; min-width: 96px; display: inline-block; }
+    #timerchip.urgent { color: var(--red); animation: pulse 1s infinite; }
+    #modechip { margin-top: 5px; font-size: 15px; color: var(--ink-dim); display: inline-block; padding: 0 12px; }
+    #roundpips { margin-top: 4px; font-size: 18px; letter-spacing: 4px; color: var(--gold); }
+
+    /* top-left ticker */
+    #ticker { position: absolute; top: 14px; left: 16px; width: 320px; font-size: 16px; }
+    .tick { opacity: 0; transform: translateX(-8px) rotate(-0.5deg); transition: opacity .25s, transform .25s;
+      text-shadow: 0 2px 3px rgba(0,0,0,.7); margin-bottom: 2px; }
+    .tick.show { opacity: 1; transform: none; }
+    .tick.fade { opacity: 0; transition: opacity 1s; }
+
+    /* top-right enemy chips */
+    #enemies { position: absolute; top: 14px; right: 16px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+    .foechip { display: flex; align-items: center; gap: 8px; padding: 3px 12px; transform: rotate(0.5deg); }
+    .foechip .dot { width: 12px; height: 12px; border-radius: 50% 40% 55% 45%; border: 2px solid var(--ink); }
+    .foechip .fname { font-size: 15px; }
+    .foechip .fbar { width: 74px; height: 8px; border: 2px solid var(--ink); border-radius: 6px; overflow: hidden; background: rgba(0,0,0,.5); }
+    .foechip .fbar i { display: block; height: 100%; background: var(--red); transition: width .2s; }
+
+    /* bottom center: my health */
+    #myhud { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%) rotate(-0.3deg); display: flex; align-items: center; gap: 10px; }
+    #hpheart { font-size: 26px; filter: drop-shadow(0 2px 2px rgba(0,0,0,.6)); }
+    #hpwrap { width: 280px; height: 20px; border: 3px solid var(--ink); border-radius: 12px 16px 14px 10px; background: rgba(0,0,0,.55); overflow: hidden; position: relative; box-shadow: 0 3px 0 rgba(0,0,0,.35); }
+    #hpfill { position: absolute; inset: 0; background: linear-gradient(180deg, #8ed0ff, #4ba3e8); transition: width .18s; }
+    #hpfill.low { background: linear-gradient(180deg, #ff9a8a, #e0503f); }
+    #hpticks { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 26.5px, rgba(0,0,0,.35) 26.5px 28px); }
+    #hpnum { position: absolute; inset: 0; text-align: center; font-size: 15px; line-height: 20px; color: #fff; text-shadow: 0 1px 2px #000; }
+    #statusrow { position: absolute; bottom: 46px; left: 50%; transform: translateX(-50%); font-size: 15px; display: flex; gap: 8px; }
+    .statusico { background: var(--paper); border: 2px solid var(--ink); border-radius: 50%; width: 28px; height: 28px; line-height: 25px; text-align: center; }
+
+    /* bottom right: spellbook card */
+    #spellcard { position: absolute; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(4, 62px); gap: 6px; padding: 8px; transform: rotate(0.6deg); }
+    .spell { position: relative; border: 2px solid var(--ink-dim); border-radius: 10px 13px 9px 14px; padding: 3px 2px 1px; text-align: center; background: rgba(0,0,0,.3); transition: border-color .15s, box-shadow .15s, transform .1s; }
+    .spell svg { width: 30px; height: 30px; display: block; margin: 0 auto; }
+    .spell svg path { fill: none; stroke: var(--ink); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+    .spell .sname { font-size: 11.5px; line-height: 1; color: var(--ink-dim); display: block; padding-bottom: 2px; }
+    .spell .cd { position: absolute; inset: 0; border-radius: inherit; background: conic-gradient(transparent 0deg, transparent var(--a, 0deg), rgba(0,0,0,.72) var(--a, 0deg) 360deg); }
+    .spell.guess { border-color: var(--gold); box-shadow: 0 0 12px rgba(255, 215, 106, .5); transform: scale(1.06); }
+    .spell.cast { animation: cardpop .35s; }
+    .spell.denied { animation: shakeX .3s; border-color: var(--red); }
+    @keyframes cardpop { 30% { transform: scale(1.18) rotate(-2deg); } }
+    @keyframes shakeX { 25% { transform: translateX(-3px);} 75% { transform: translateX(3px);} }
+
+    /* controls hint bottom-left */
+    #hint { position: absolute; left: 16px; bottom: 16px; font-size: 15px; color: var(--ink-dim); max-width: 250px; line-height: 1.45; padding: 8px 14px; transform: rotate(-0.7deg); transition: opacity 1s; }
+    #hint b { color: var(--ink); }
+
+    /* live guess chip while drawing */
+    #guesschip { position: absolute; left: 50%; top: 62%; transform: translate(-50%, 0); display: none; align-items: center; gap: 8px; font-size: 18px; padding: 4px 16px; }
+    #guesschip.on { display: flex; }
+    #guesschip svg { width: 26px; height: 26px; }
+    #guesschip svg path { fill: none; stroke: var(--gold); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* crosshair */
+    #crosshair { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px; border: 2px solid rgba(242,233,216,.9); border-radius: 50%; box-shadow: 0 0 4px rgba(0,0,0,.8); }
+    #crosshair.drawing { width: 5px; height: 5px; margin: -2.5px; background: var(--gold); border-color: var(--gold); border-radius: 40% 60% 50% 50%; }
+
+    /* floaters (world-projected: damage numbers, overhead bars, bubbles) */
+    #floaters { position: absolute; inset: 0; overflow: hidden; }
+    .dmg { position: absolute; font-family: var(--script); font-size: 26px; font-weight: 700; text-shadow: 0 2px 2px rgba(0,0,0,.8); animation: dmgfloat 0.9s forwards; white-space: nowrap; }
+    @keyframes dmgfloat { 0% { opacity: 0; transform: translate(-50%, 0) scale(.6) rotate(-4deg); } 15% { opacity: 1; transform: translate(-50%, -14px) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -52px) scale(.95) rotate(3deg); } }
+    .overhead { position: absolute; transform: translate(-50%, -100%); text-align: center; transition: opacity .3s; }
+    .overhead .oname { font-size: 14px; text-shadow: 0 2px 2px #000; color: var(--ink); }
+    .overhead .obar { width: 68px; height: 7px; border: 2px solid rgba(242,233,216,.9); border-radius: 5px; background: rgba(0,0,0,.55); overflow: hidden; margin: 1px auto 0; }
+    .overhead .obar i { display: block; height: 100%; background: var(--red); }
+    .overhead .obar i.ally { background: var(--green); }
+    .bubble { position: absolute; transform: translate(-50%, -100%); background: #fdf6e3; color: #1b1a22; border: 2px solid #1b1a22;
+      border-radius: 14px 16px 14px 4px; padding: 4px 12px; font-size: 15px; max-width: 200px; text-align: center;
+      animation: bubblein .25s; box-shadow: 0 3px 0 rgba(0,0,0,.4); }
+    .bubble::after { content: ''; position: absolute; left: 18px; bottom: -9px; border: 5px solid transparent; border-top-color: #1b1a22; }
+    @keyframes bubblein { from { opacity: 0; transform: translate(-50%, -90%) scale(.7); } }
+
+    /* announcements */
+    #announce { position: absolute; left: 50%; top: 34%; transform: translateX(-50%); text-align: center; pointer-events: none; }
+    #announce .big { font-family: var(--script); font-size: 84px; font-weight: 700; text-shadow: 0 4px 0 rgba(0,0,0,.5), 0 0 30px rgba(255,215,106,.3); animation: announcein .4s; white-space: nowrap; }
+    #announce .sub { font-size: 22px; color: var(--ink-dim); margin-top: -6px; text-shadow: 0 2px 2px #000; }
+    @keyframes announcein { 0% { opacity: 0; transform: scale(2.2) rotate(3deg); } 60% { transform: scale(.95) rotate(-1deg); } 100% { opacity: 1; transform: scale(1); } }
+    @keyframes pulse { 50% { opacity: .55; } }
+
+    /* screen fx */
+    #vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .2s;
+      background: radial-gradient(ellipse at center, transparent 52%, rgba(120, 10, 10, 0.55) 100%); }
+    #healglow { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .4s;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(80, 220, 120, 0.35) 100%); }
+    #flash { position: absolute; inset: 0; pointer-events: none; background: #fff; opacity: 0; }
+
+    /* ============ MENUS ============ */
+    #menu { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; color: var(--ink); }
+    #menu.hidden { display: none; }
+    #menu .veil { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 35%, rgba(10,8,20,.25), rgba(10,8,20,.78)); }
+    .panel { position: relative; background: var(--paper); border: 3px solid var(--ink); border-radius: 22px 28px 20px 30px / 28px 20px 30px 22px;
+      padding: 26px 36px; min-width: 380px; max-width: 560px; text-align: center; box-shadow: 0 8px 0 rgba(0,0,0,.4);
+      max-height: 86vh; overflow-y: auto; }
+    .panel.hidden { display: none; }
+    #title { font-family: var(--script); font-size: 76px; font-weight: 700; line-height: .95; transform: rotate(-1.5deg);
+      text-shadow: 0 4px 0 rgba(0,0,0,.45), 0 0 40px rgba(110,195,255,.25); margin-bottom: 2px; }
+    #title .accent { color: var(--gold); }
+    .tagline { color: var(--ink-dim); font-size: 18px; margin-bottom: 20px; transform: rotate(-0.5deg); }
+    .btn { display: block; width: 100%; margin: 9px 0; padding: 9px 18px; font-family: var(--hand); font-size: 21px; color: var(--ink);
+      background: rgba(0,0,0,.32); border: 2.5px solid var(--ink); border-radius: 12px 18px 14px 20px / 18px 12px 20px 14px;
+      cursor: pointer; transition: transform .08s, background .15s; transform: rotate(-0.4deg); }
+    .btn:nth-child(even) { transform: rotate(0.4deg); }
+    .btn:hover { background: rgba(255, 215, 106, .18); transform: rotate(0deg) scale(1.03); }
+    .btn:active { transform: scale(.97); }
+    .btn.primary { border-color: var(--gold); color: var(--gold); font-size: 24px; }
+    .btn.small { font-size: 16px; padding: 5px 12px; width: auto; display: inline-block; margin: 4px; }
+    .btn:disabled { opacity: .4; cursor: default; }
+    .menusub { font-size: 15px; color: var(--ink-dim); margin-top: 12px; }
+    h2 { font-family: var(--script); font-size: 40px; margin-bottom: 12px; transform: rotate(-0.8deg); }
+    .row { display: flex; gap: 10px; justify-content: center; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+    input[type=text] { font-family: var(--hand); font-size: 22px; text-align: center; letter-spacing: 3px; text-transform: uppercase;
+      background: rgba(0,0,0,.4); color: var(--ink); border: 2.5px solid var(--ink); border-radius: 10px 14px 10px 14px; padding: 6px 10px; width: 190px; outline: none; }
+    input[type=range] { width: 180px; accent-color: var(--gold); }
+    .codebox { font-size: 42px; letter-spacing: 6px; color: var(--gold); background: rgba(0,0,0,.4); border: 2.5px dashed var(--ink);
+      border-radius: 14px; padding: 6px 20px; margin: 10px auto; display: inline-block; user-select: text; }
+    .spinner { display: inline-block; animation: spin 1.6s linear infinite; font-size: 26px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .glyphtable { text-align: left; font-size: 16px; margin: 6px auto; border-collapse: collapse; }
+    .glyphtable td { padding: 3px 10px; border-bottom: 1px dashed rgba(242,233,216,.25); }
+    .glyphtable svg { width: 30px; height: 30px; vertical-align: middle; }
+    .glyphtable svg path { fill: none; stroke: var(--gold); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+    .glyphtable .cname { color: var(--gold); }
+    .glyphtable .cdesc { color: var(--ink-dim); font-size: 14.5px; }
+    .stats { font-size: 17px; color: var(--ink-dim); margin: 10px 0; line-height: 1.6; }
+    .err { color: var(--red); font-size: 16px; min-height: 20px; }
+    ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-thumb { background: rgba(242,233,216,.3); border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="hud" class="hidden">
+    <div id="floaters"></div>
+    <div id="vignette"></div>
+    <div id="healglow"></div>
+    <div id="flash"></div>
+    <div id="topcenter">
+      <div id="timerchip" class="chip">3:00</div><br>
+      <div id="modechip" class="chip">Round 1</div>
+      <div id="roundpips"></div>
+    </div>
+    <div id="ticker"></div>
+    <div id="enemies"></div>
+    <div id="statusrow"></div>
+    <div id="myhud">
+      <div id="hpheart">🩵</div>
+      <div id="hpwrap"><div id="hpfill"></div><div id="hpticks"></div><div id="hpnum">100</div></div>
+    </div>
+    <div id="spellcard" class="chip"></div>
+    <div id="hint" class="chip"><b>HOLD LEFT-CLICK</b> &amp; move mouse to draw a glyph — release to cast. <b>Right-click</b> cancels (feint!). <b>WASD</b> move, <b>SPACE</b> jump.</div>
+    <div id="guesschip" class="chip"><svg viewBox="0 0 24 24"><path d=""/></svg><span>?</span></div>
+    <div id="crosshair"></div>
+    <div id="announce"></div>
+  </div>
+
+  <div id="menu">
+    <div class="veil"></div>
+
+    <div class="panel" id="panel-home">
+      <div id="title">Wizard<br><span class="accent">Duel</span></div>
+      <div class="tagline">~ scribble sorcery for rude sorcerers ~</div>
+      <button class="btn primary" id="btn-solo">⚔ &nbsp;Duel the Circle</button>
+      <button class="btn" id="btn-mp">🌐 &nbsp;Multiplayer</button>
+      <button class="btn" id="btn-howto">📜 &nbsp;How to Play</button>
+      <button class="btn" id="btn-settings">⚙ &nbsp;Settings</button>
+      <div class="menusub">mouse + keyboard required · headphones recommended</div>
+    </div>
+
+    <div class="panel hidden" id="panel-mp">
+      <h2>Multiplayer</h2>
+      <div class="row"><input type="text" id="mp-name" maxlength="12" placeholder="YOUR NAME"></div>
+      <button class="btn" id="btn-host-duel">🗡 Host a Duel <span style="color:var(--ink-dim);font-size:15px">(1v1)</span></button>
+      <button class="btn" id="btn-host-coop">🤝 Host Co-op <span style="color:var(--ink-dim);font-size:15px">(2P vs waves)</span></button>
+      <div class="row" style="margin-top:14px">
+        <input type="text" id="mp-code" maxlength="8" placeholder="CODE">
+        <button class="btn small" id="btn-join">Join ➜</button>
+      </div>
+      <div class="err" id="mp-err"></div>
+      <button class="btn small" id="btn-mp-back">← Back</button>
+    </div>
+
+    <div class="panel hidden" id="panel-wait">
+      <h2 id="wait-title">Summoning circle open</h2>
+      <div>Share this rune with your rival:</div>
+      <div class="codebox" id="room-code">····</div>
+      <div class="row"><button class="btn small" id="btn-copy">Copy code</button></div>
+      <div><span class="spinner">✦</span> waiting for a challenger…</div>
+      <button class="btn small" id="btn-wait-back" style="margin-top:14px">← Cancel</button>
+    </div>
+
+    <div class="panel hidden" id="panel-howto">
+      <h2>How to Play</h2>
+      <div style="text-align:left;font-size:16.5px;line-height:1.5">
+        <b>Hold left-click</b> and scrawl a glyph in the air, <b>release to cast</b>. Sloppy is fine — the wand forgives.
+        You move slower and can't turn while drawing, so pick your moment.<br><br>
+        <b>You can see your foe's glyph forming in real time</b> — and they see yours.
+        Read it. Counter it. Or <b>right-click</b> mid-draw to cancel and feint.<br>
+      </div>
+      <table class="glyphtable" id="howto-glyphs"></table>
+      <div style="text-align:left;font-size:15px;color:var(--ink-dim);line-height:1.5">
+        Shield eats bolts &amp; flame but <b>shatters</b> under stone. Mirror hurls projectiles back but <b>lightning pierces it</b>.
+        Lightning <b>interrupts</b> a mid-draw rival. Healing is strong — and very punishable. Stones crack shields.
+        The Grip steals rocks, debris… <i>and wizards</i>.
+      </div>
+      <button class="btn small" id="btn-howto-back" style="margin-top:12px">← Back</button>
+    </div>
+
+    <div class="panel hidden" id="panel-settings">
+      <h2>Settings</h2>
+      <div class="row">Mouse feel <input type="range" id="set-sens" min="0.3" max="2.2" step="0.05"><span id="set-sens-v"></span></div>
+      <div class="row">Volume <input type="range" id="set-vol" min="0" max="1" step="0.05"><span id="set-vol-v"></span></div>
+      <div class="row">Screen shake <input type="range" id="set-shake" min="0" max="1.5" step="0.1"><span id="set-shake-v"></span></div>
+      <button class="btn small" id="btn-settings-back" style="margin-top:10px">← Back</button>
+    </div>
+
+    <div class="panel hidden" id="panel-pause">
+      <h2>Parley</h2>
+      <button class="btn primary" id="btn-resume">Resume</button>
+      <button class="btn" id="btn-quit">Abandon match</button>
+    </div>
+
+    <div class="panel hidden" id="panel-end">
+      <h2 id="end-title">Victory</h2>
+      <div class="stats" id="end-stats"></div>
+      <button class="btn primary hidden" id="btn-next">Next challenger ➜</button>
+      <button class="btn hidden" id="btn-retry">Try again</button>
+      <button class="btn hidden" id="btn-rematch">Rematch</button>
+      <button class="btn" id="btn-end-menu">Back to menu</button>
+    </div>
+
+    <div class="panel hidden" id="panel-resume">
+      <h2>Wand down!</h2>
+      <div class="menusub" style="margin-bottom:10px">Your cursor escaped the duel.</div>
+      <button class="btn primary" id="btn-recapture">Click to keep fighting</button>
+      <button class="btn small" id="btn-recapture-quit">Abandon match</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
